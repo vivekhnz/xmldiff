@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<Configuration>
+    <Name>Base</Name>
+    <Version Major="2018" Minor="1" Patch="0" />
+    <TopLevelProperty>12345</TopLevelProperty>
+    <OldSettings>
+        <Setting Name="Setting1" Value="ZZZ"/>
+        <Setting Name="Setting2" Value="DEF"/>
+        <Setting Name="Setting3" Value="GHI"/>
+        <Setting Name="Setting4" Value="JKL"/>
+    </OldSettings>
+    <NewSettings>
+        <Setting Name="Setting1_V2" Value="ABC"/>
+    </NewSettings>
+</Configuration>

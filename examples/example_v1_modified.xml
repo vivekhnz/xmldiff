@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<Configuration>
+    <Name>Modified</Name>
+    <Version Major="2017" Minor="3" Patch="2" />
+    <OldSettings>
+        <Setting Name="Setting1" Value="000"/>
+        <Setting Name="Setting2" Value="DEF"/>
+        <Setting Name="Setting3" Value="222"/>
+    </OldSettings>
+</Configuration>

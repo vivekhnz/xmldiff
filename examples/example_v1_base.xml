@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<Configuration>
+    <Name>Base</Name>
+    <Version Major="2017" Minor="3" Patch="2" />
+    <OldSettings>
+        <Setting Name="Setting1" Value="ABC"/>
+        <Setting Name="Setting2" Value="DEF"/>
+        <Setting Name="Setting3" Value="GHI"/>
+    </OldSettings>
+</Configuration>

@@ -1,12 +1,14 @@
 ﻿using System;
+using CommandDotNet;
 
 namespace xmldiff
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            var appRunner = new AppRunner<XmlDiffApp>();
+            return appRunner.Run(args);
         }
     }
 }

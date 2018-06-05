@@ -9,7 +9,17 @@
                 "build",
                 "${workspaceFolder}/xmldiff.csproj"
             ],
-            "problemMatcher": "$msCompile"
+            "presentation": {
+                "echo": true,
+                "reveal": "never",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
     ]
 }
