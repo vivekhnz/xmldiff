@@ -15,9 +15,38 @@ namespace xmldiff
         {
             // verify source files exist
             if (!File.Exists(originalXmlPath))
+            {
                 Console.WriteLine($"Could not find original XML file at '{originalXmlPath}'");
+                return;
+            }
             if (!File.Exists(modifiedXmlPath))
+            {
                 Console.WriteLine($"Could not find modified XML file at '{modifiedXmlPath}'");
+                return;
+            }
+
+            // tag XML file
+            var doc = new XmlDoc(originalXmlPath);
+            var taggedDoc = doc.Tag();
+            taggedDoc.Save(taggedXmlOutputPath);
+        }
+
+        [ApplicationMetadata(Description = "Tags each node in an XML file with unique identifiers.")]
+        public void Tag(
+            [Argument(Name = "Original XML file", Description = "Path to the original XML file")] string originalXmlPath,
+            [Argument(Name = "Output tagged XML file", Description = "Path to save the tagged XML file to")] string taggedXmlOutputPath)
+        {
+            // verify source files exist
+            if (!File.Exists(originalXmlPath))
+            {
+                Console.WriteLine($"Could not find original XML file at '{originalXmlPath}'");
+                return;
+            }
+
+            // tag XML file
+            var doc = new XmlDoc(originalXmlPath);
+            var taggedDoc = doc.Tag();
+            taggedDoc.Save(taggedXmlOutputPath);
         }
     }
 }
