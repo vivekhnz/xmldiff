@@ -2,7 +2,9 @@
 <Configuration>
     <Name>Modified</Name>
     <Version Major="2017" Minor="3" Patch="2" />
-    <OldSettings>
+    <OldProperty>abc</OldProperty>
+    <TopLevelProperty>12345</TopLevelProperty>
+    <OldSettings Count="3">
         <Setting Name="Setting1" Value="000"/>
         <Setting Name="Setting2" Value="DEF"/>
         <Setting Name="Setting3" Value="222"/>

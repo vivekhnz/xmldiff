@@ -25,10 +25,15 @@ namespace xmldiff
                 return;
             }
 
-            // tag XML file
-            var doc = new XmlDoc(originalXmlPath);
-            var taggedDoc = doc.Tag();
+            // tag original XML file
+            var original = new XmlDoc(originalXmlPath);
+            var taggedDoc = original.Tag();
             taggedDoc.Save(taggedXmlOutputPath);
+
+            // diff files
+            var modified = new XmlDoc(modifiedXmlPath);
+            var diff = modified.Diff(taggedDoc);
+            diff.Save(patchOutputPath);
         }
 
         [ApplicationMetadata(Description = "Tags each node in an XML file with unique identifiers.")]

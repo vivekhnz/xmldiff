@@ -1,41 +1,55 @@
 using System;
 using System.Xml;
 
-public class TaggedXmlDoc
+namespace xmldiff
 {
-    private static readonly string IdAttribute = "xmldiff.Id";
-
-    private XmlDocument doc;
-    private int tagCount = 0;
-
-    public TaggedXmlDoc(XmlDocument doc)
+    public class TaggedXmlDoc
     {
-        this.doc = doc.Clone() as XmlDocument;
-        TagNode(this.doc.DocumentElement);
-    }
+        public static readonly string IdAttribute = "xmldiff.Id";
 
-    private void TagNode(XmlElement element)
-    {
-        if (element == null)
-            return;
+        private XmlDocument doc;
+        private int tagCount = 0;
 
-        var attribute = doc.CreateAttribute(IdAttribute);
-        attribute.Value = tagCount.ToString();
-        tagCount++;
+        public XmlDocument Document => doc;
 
-        element.Attributes.Append(attribute);
-
-        if (element.HasChildNodes)
+        public TaggedXmlDoc(XmlDocument doc)
         {
-            foreach (var child in element.ChildNodes)
+            this.doc = doc.Clone() as XmlDocument;
+            TagNode(this.doc.DocumentElement);
+        }
+
+        private void TagNode(XmlElement element)
+        {
+            if (element == null)
+                return;
+
+            var attribute = doc.CreateAttribute(IdAttribute);
+            attribute.Value = tagCount.ToString();
+            tagCount++;
+
+            element.Attributes.Append(attribute);
+
+            if (element.HasChildNodes)
             {
-                TagNode(child as XmlElement);
+                foreach (var child in element.ChildNodes)
+                {
+                    TagNode(child as XmlElement);
+                }
             }
         }
-    }
 
-    public void Save(string path)
-    {
-        doc.Save(path);
+        public void Save(string path)
+        {
+            doc.Save(path);
+        }
+
+        public int GetId(XmlElement original)
+        {
+            var attribute = original.GetAttribute(IdAttribute);
+            if (string.IsNullOrEmpty(attribute))
+                throw new Exception($"Specified node was not tagged with an '{IdAttribute}' attribute");
+
+            return int.Parse(attribute);
+        }
     }
 }

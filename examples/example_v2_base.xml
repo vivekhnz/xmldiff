@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<Configuration>
+<Configuration NewAttribute="abc">
     <Name>Base</Name>
     <Version Major="2018" Minor="1" Patch="0" />
-    <TopLevelProperty>12345</TopLevelProperty>
+    <TopLevelPropertyNewName>12345</TopLevelPropertyNewName>
     <OldSettings>
         <Setting Name="Setting1" Value="ZZZ"/>
         <Setting Name="Setting2" Value="DEF"/>
