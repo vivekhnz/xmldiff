@@ -11,6 +11,7 @@ namespace xmldiff
         public int NodeId { get; set; }
         public string Name { get; set; }
         public string Value { get; set; }
+        public int? AfterNodeId { get; set; }
         public XmlElement Element { get; set; }
 
         public XmlModification() { }
@@ -57,13 +58,14 @@ namespace xmldiff
             };
         }
 
-        public static XmlModification AddElement(int id, XmlElement element)
+        public static XmlModification InsertElement(int id, XmlElement element, int afterNodeId)
         {
             return new XmlModification
             {
-                Type = XmlModificationType.AddElement,
+                Type = XmlModificationType.InsertElement,
                 NodeId = id,
-                Element = element
+                Element = element,
+                AfterNodeId = afterNodeId
             };
         }
 
@@ -97,6 +99,6 @@ namespace xmldiff
         RemoveElement,
         RenameElement,
         ModifyElementValue,
-        AddElement
+        InsertElement
     }
 }

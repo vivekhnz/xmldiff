@@ -9,4 +9,10 @@
         <Setting Name="Setting2" Value="DEF"/>
         <Setting Name="Setting3" Value="222"/>
     </OldSettings>
+    <ConnectionStrings>
+        <clear />
+        <add name="Dev" connectionString="Data Source=localhost;Initial Catalog=DEV;" />
+        <remove name="Dev">
+        <add name="Prod" connectionString="Data Source=SERVER01;Initial Catalog=PROD;" />
+    </ConnectionStrings>
 </Configuration>

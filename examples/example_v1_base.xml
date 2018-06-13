@@ -9,4 +9,9 @@
         <Setting Name="Setting2" Value="DEF"/>
         <Setting Name="Setting3" Value="GHI"/>
     </OldSettings>
+    <ConnectionStrings>
+        <clear />
+        <add name="Dev" connectionString="Data Source=localhost;Initial Catalog=DEV;" />
+        <add name="Prod" connectionString="Data Source=localhost;Initial Catalog=PROD;" />
+    </ConnectionStrings>
 </Configuration>

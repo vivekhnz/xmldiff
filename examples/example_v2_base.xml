@@ -12,4 +12,10 @@
     <NewSettings>
         <Setting Name="Setting1_V2" Value="ABC"/>
     </NewSettings>
+    <ConnectionStrings>
+        <clear />
+        <add name="Dev" connectionString="Data Source=localhost;Initial Catalog=DEV;" />
+        <add name="Test" connectionString="Data Source=localhost;Initial Catalog=TEST;" />
+        <add name="Prod" connectionString="Data Source=localhost;Initial Catalog=PROD;" />
+    </ConnectionStrings>
 </Configuration>
