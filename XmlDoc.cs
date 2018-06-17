@@ -20,7 +20,7 @@ namespace xmldiff
 
         public XmlDiff Diff(TaggedXmlDoc original)
         {
-            return new XmlDiff(original, this.doc);
+            return new XmlDiff(original.Root.Diff(doc.DocumentElement));
         }
     }
 }

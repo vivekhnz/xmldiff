@@ -24,13 +24,15 @@ namespace xmldiff
                 return;
             }
 
-            // tag original XML file
+            // assign each element a unique ID
             var original = new XmlDoc(originalXmlPath);
             var taggedDoc = original.Tag();
 
             // diff files
             var modified = new XmlDoc(modifiedXmlPath);
             var diff = modified.Diff(taggedDoc);
+
+            // save patch file
             diff.Save(patchOutputPath);
         }
     }
