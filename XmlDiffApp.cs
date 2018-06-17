@@ -35,5 +35,28 @@ namespace xmldiff
             // save patch file
             diff.Save(patchOutputPath);
         }
+
+        [ApplicationMetadata(Description = "Patches an XML file with a specified diff file.")]
+        public void Patch(
+            [Argument(Name = "Source XML file", Description = "Path to the source XML file to patch")] string sourceXmlPath,
+            [Argument(Name = "Patch file", Description = "Path to the patch file")] string patchPath,
+            [Argument(Name = "Destination XML file", Description = "Path to save the patched XML file to")] string destinationXmlPath)
+        {
+            // verify source files exist
+            if (!File.Exists(sourceXmlPath))
+            {
+                Console.WriteLine($"Could not find source XML file at '{sourceXmlPath}'");
+                return;
+            }
+            if (!File.Exists(patchPath))
+            {
+                Console.WriteLine($"Could not find patch file at '{patchPath}'");
+                return;
+            }
+
+            // load source doc and patch
+            var source = new XmlDoc(sourceXmlPath);
+            var patch = XmlDiff.Load(patchPath);
+        }
     }
 }

@@ -10,6 +10,8 @@ namespace xmldiff
         public XmlSelector Selector { get; private set; }
         public List<XmlModification> Modifications { get; private set; }
 
+        private XmlDiff() { }
+
         public XmlDiff(XmlNodeDiff rootDiff)
         {
             Selector = rootDiff.Selector;
@@ -42,6 +44,22 @@ namespace xmldiff
 
             // save to file
             doc.Save(path);
+        }
+
+        public static XmlDiff Load(string path)
+        {
+            var doc = new XmlDocument();
+            doc.Load(path);
+
+            var patch = doc.DocumentElement;
+            var selector = patch.SelectSingleNode("Selectors/Selector");
+            var modifications = patch.SelectNodes("Modifications/*");
+
+            return new XmlDiff
+            {
+                Selector = XmlSelector.Deserialize(selector),
+                Modifications = modifications.Cast<XmlNode>().Select(n => XmlModification.Deserialize(n)).ToList()
+            };
         }
     }
 }

@@ -13,8 +13,6 @@ namespace xmldiff
         public int NodeId { get; set; }
         public IEnumerable<XmlSelector> Children { get; set; }
 
-        public XmlSelector() { }
-
         public XmlSelector(string xpath, int id, IEnumerable<XmlSelector> children)
         {
             XPath = xpath;
@@ -46,6 +44,19 @@ namespace xmldiff
             }
 
             return element;
+        }
+
+        public static XmlSelector Deserialize(XmlNode node)
+        {
+            var xpath = node.SelectSingleNode("@XPath")?.Value;
+            if (string.IsNullOrWhiteSpace(xpath) ||
+                !int.TryParse(node.SelectSingleNode("@NodeId")?.Value ?? string.Empty, out var id))
+            {
+                throw new Exception($"Unable to locate XPath or NodeId attributes on '{node.Name}' node.");
+            }
+
+            return new XmlSelector(xpath, id,
+                node.SelectNodes("Selector").Cast<XmlNode>().Select(n => XmlSelector.Deserialize(n)));
         }
     }
 }

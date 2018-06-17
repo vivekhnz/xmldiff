@@ -16,45 +16,7 @@ namespace xmldiff
         public int? AfterNodeId { get; set; }
         public XmlElement Element { get; set; }
 
-        public XmlModification() { }
-
-        public XmlElement Serialize(XmlDocument doc)
-        {
-            var element = doc.CreateElement(ModificationNodeName);
-
-            var idAttribute = doc.CreateAttribute(nameof(NodeId));
-            idAttribute.Value = NodeId.ToString();
-            element.Attributes.Append(idAttribute);
-
-            var typeAttribute = doc.CreateAttribute(nameof(Type));
-            typeAttribute.Value = Type.ToString();
-            element.Attributes.Append(typeAttribute);
-
-            if (!string.IsNullOrWhiteSpace(Name))
-            {
-                var nameAttribute = doc.CreateAttribute(nameof(Name));
-                nameAttribute.Value = Name.ToString();
-                element.Attributes.Append(nameAttribute);
-            }
-            if (!string.IsNullOrWhiteSpace(Value))
-            {
-                var valueAttribute = doc.CreateAttribute(nameof(Value));
-                valueAttribute.Value = Value.ToString();
-                element.Attributes.Append(valueAttribute);
-            }
-            if (AfterNodeId.HasValue)
-            {
-                var afterNodeIdAttribute = doc.CreateAttribute(nameof(AfterNodeId));
-                afterNodeIdAttribute.Value = AfterNodeId.ToString();
-                element.Attributes.Append(afterNodeIdAttribute);
-            }
-            if (Element != null)
-            {
-                element.AppendChild(doc.ImportNode(Element, true));
-            }
-
-            return element;
-        }
+        private XmlModification() { }
 
         public static XmlModification RenameElement(int id, string newName)
         {
@@ -127,10 +89,87 @@ namespace xmldiff
                 Value = newValue
             };
         }
+
+        public XmlElement Serialize(XmlDocument doc)
+        {
+            var element = doc.CreateElement(ModificationNodeName);
+
+            var idAttribute = doc.CreateAttribute(nameof(NodeId));
+            idAttribute.Value = NodeId.ToString();
+            element.Attributes.Append(idAttribute);
+
+            var typeAttribute = doc.CreateAttribute(nameof(Type));
+            typeAttribute.Value = Type.ToString();
+            element.Attributes.Append(typeAttribute);
+
+            if (!string.IsNullOrWhiteSpace(Name))
+            {
+                var nameAttribute = doc.CreateAttribute(nameof(Name));
+                nameAttribute.Value = Name.ToString();
+                element.Attributes.Append(nameAttribute);
+            }
+            if (!string.IsNullOrWhiteSpace(Value))
+            {
+                var valueAttribute = doc.CreateAttribute(nameof(Value));
+                valueAttribute.Value = Value.ToString();
+                element.Attributes.Append(valueAttribute);
+            }
+            if (AfterNodeId.HasValue)
+            {
+                var afterNodeIdAttribute = doc.CreateAttribute(nameof(AfterNodeId));
+                afterNodeIdAttribute.Value = AfterNodeId.ToString();
+                element.Attributes.Append(afterNodeIdAttribute);
+            }
+            if (Element != null)
+            {
+                element.AppendChild(doc.ImportNode(Element, true));
+            }
+
+            return element;
+        }
+
+        public static XmlModification Deserialize(XmlNode node)
+        {
+            if (!Enum.TryParse(typeof(XmlModificationType), node.SelectSingleNode("@Type")?.Value, out var type))
+            {
+                throw new Exception($"Couldn't identify modification type for node '{node.Name}'");
+            }
+            if (!int.TryParse(node.SelectSingleNode("@NodeId")?.Value, out var id))
+            {
+                throw new Exception($"Couldn't identify node ID for node '{node.Name}'");
+            }
+
+            var name = node.SelectSingleNode("@Name")?.Value;
+            var newValue = node.SelectSingleNode("@Value")?.Value;
+            var afterNodeStr = node.SelectSingleNode("@AfterNodeId")?.Value;
+            int.TryParse(afterNodeStr, out var afterNodeId);
+
+            switch (type)
+            {
+                case XmlModificationType.ModifyElementValue:
+                    return XmlModification.ModifyElementValue(id, newValue);
+                case XmlModificationType.InsertElement:
+                    return XmlModification.InsertElement(id, node.FirstChild as XmlElement, afterNodeId);
+                case XmlModificationType.ModifyAttribute:
+                    return XmlModification.ModifyAttribute(id, name, newValue);
+                case XmlModificationType.AddAttribute:
+                    return XmlModification.AddAttribute(id, name, newValue);
+                case XmlModificationType.RemoveElement:
+                    return XmlModification.RemoveElement(id);
+                case XmlModificationType.RemoveAttribute:
+                    return XmlModification.RemoveAttribute(id, name);
+                case XmlModificationType.RenameElement:
+                    return XmlModification.RenameElement(id, newValue);
+            }
+
+            throw new NotImplementedException($"Modifications of type '{type}' are not supported.");
+        }
     }
 
     public enum XmlModificationType
     {
+        Unknown,
+
         // order determines precedence (earlier values will be processed first)
         ModifyElementValue,
         InsertElement,
