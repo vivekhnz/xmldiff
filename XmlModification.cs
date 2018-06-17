@@ -7,6 +7,8 @@ namespace xmldiff
 {
     public class XmlModification
     {
+        private static readonly string ModificationNodeName = "Modification";
+
         public XmlModificationType Type { get; set; }
         public int NodeId { get; set; }
         public string Name { get; set; }
@@ -15,6 +17,44 @@ namespace xmldiff
         public XmlElement Element { get; set; }
 
         public XmlModification() { }
+
+        public XmlElement Serialize(XmlDocument doc)
+        {
+            var element = doc.CreateElement(ModificationNodeName);
+
+            var idAttribute = doc.CreateAttribute(nameof(NodeId));
+            idAttribute.Value = NodeId.ToString();
+            element.Attributes.Append(idAttribute);
+
+            var typeAttribute = doc.CreateAttribute(nameof(Type));
+            typeAttribute.Value = Type.ToString();
+            element.Attributes.Append(typeAttribute);
+
+            if (!string.IsNullOrWhiteSpace(Name))
+            {
+                var nameAttribute = doc.CreateAttribute(nameof(Name));
+                nameAttribute.Value = Name.ToString();
+                element.Attributes.Append(nameAttribute);
+            }
+            if (!string.IsNullOrWhiteSpace(Value))
+            {
+                var valueAttribute = doc.CreateAttribute(nameof(Value));
+                valueAttribute.Value = Value.ToString();
+                element.Attributes.Append(valueAttribute);
+            }
+            if (AfterNodeId.HasValue)
+            {
+                var afterNodeIdAttribute = doc.CreateAttribute(nameof(AfterNodeId));
+                afterNodeIdAttribute.Value = AfterNodeId.ToString();
+                element.Attributes.Append(afterNodeIdAttribute);
+            }
+            if (Element != null)
+            {
+                element.AppendChild(doc.ImportNode(Element, true));
+            }
+
+            return element;
+        }
 
         public static XmlModification RenameElement(int id, string newName)
         {
@@ -91,14 +131,15 @@ namespace xmldiff
 
     public enum XmlModificationType
     {
-        // order determines precedence (lower values will be processed first)
-        RemoveAttribute,
+        // order determines precedence (earlier values will be processed first)
+        ModifyElementValue,
+        InsertElement,
+
         ModifyAttribute,
         AddAttribute,
 
         RemoveElement,
-        RenameElement,
-        ModifyElementValue,
-        InsertElement
+        RemoveAttribute,
+        RenameElement
     }
 }

@@ -12,7 +12,7 @@
     <ConnectionStrings>
         <clear />
         <add name="Dev" connectionString="Data Source=localhost;Initial Catalog=DEV;" />
-        <remove name="Dev">
+        <remove name="Dev" />
         <add name="Prod" connectionString="Data Source=SERVER01;Initial Catalog=PROD;" />
     </ConnectionStrings>
 </Configuration>

@@ -7,8 +7,6 @@ namespace xmldiff
 {
     public class XmlDiff
     {
-        public static readonly string ModificationNodeName = "Modification";
-
         private TaggedXmlDoc taggedOriginal;
         private XmlDocument modified;
         private XmlDocument patch;
@@ -30,60 +28,243 @@ namespace xmldiff
             var patch = doc.CreateElement("Patch");
             doc.AppendChild(patch);
 
-            foreach (var mod in Diff(taggedOriginal.Document.DocumentElement, modified.DocumentElement))
+            var diff = Diff(null, taggedOriginal.Document.DocumentElement, modified.DocumentElement);
+
+            var selectors = doc.CreateElement("Selectors");
+            selectors.AppendChild(diff.Selector.Serialize(doc));
+            patch.AppendChild(selectors);
+
+            // sort modifications by node ID first, then by modification type
+            var mods = doc.CreateElement("Modifications");
+            foreach (var mod in diff.Modifications.OrderByDescending(m => m.NodeId).ThenBy(m => (int)m.Type))
             {
-                patch.AppendChild(SerializeModification(doc, mod));
+                mods.AppendChild(mod.Serialize(doc));
             }
+            patch.AppendChild(mods);
 
             return doc;
         }
 
-        public IEnumerable<XmlModification> Diff(XmlElement original, XmlElement modified)
+        private XmlNodeDiff Diff(string xpath, XmlElement original, XmlElement modified)
         {
+            if (string.IsNullOrEmpty(xpath))
+            {
+                xpath = original.Name;
+            }
             var id = taggedOriginal.GetId(original);
             var mods = new List<XmlModification>();
 
-            // determine whether element has been renamed
-            if (original.Name != modified.Name)
+            var originalChildElements = original.ChildNodes.Cast<XmlNode>().Where(n => n is XmlElement)
+                .Select(n => n as XmlElement).ToList();
+            var modifiedChildElements = new List<XmlElement>();
+
+            if (modified != null)
             {
-                // element has been renamed
-                mods.Add(XmlModification.RenameElement(id, modified.Name));
+                // determine whether element has been renamed
+                if (original.Name != modified.Name)
+                {
+                    // element has been renamed
+                    mods.Add(XmlModification.RenameElement(id, modified.Name));
+                }
+
+                // compare attributes
+                mods.AddRange(CompareAttributes(id, original, modified));
+
+                // compare element value
+                modifiedChildElements = modified.ChildNodes.Cast<XmlNode>().Where(n => n is XmlElement)
+                    .Select(n => n as XmlElement).ToList();
+                if (modifiedChildElements.Count == 0 && original.InnerText != modified.InnerText)
+                {
+                    mods.Add(XmlModification.ModifyElementValue(id, modified.InnerText));
+                }
+                else if (modifiedChildElements.Count > 0 && originalChildElements.Count == 0)
+                {
+                    mods.AddRange(modifiedChildElements.Select(e => XmlModification.InsertElement(id, e, -1)));
+                }
             }
 
-            // compare attributes
-            mods.AddRange(CompareAttributes(id, original, modified));
-
-            // get original and modified child elements
-            var originalChildElements = original.ChildNodes.Cast<XmlNode>().Where(n => n is XmlElement)
-                .Select(n => n as XmlElement);
-            var modifiedChildElements = modified.ChildNodes.Cast<XmlNode>().Where(n => n is XmlElement)
-                .Select(n => n as XmlElement);
-
-            var originalChildElementsGrouped = originalChildElements.GroupBy(e => e.Name)
-                .ToDictionary(g => g.Key, g => g.ToList());
-            var modifiedChildElementsGrouped = modifiedChildElements.GroupBy(e => e.Name)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            // compare child elements
-            if (originalChildElementsGrouped.Any(g => g.Value.Count > 1) ||
-                modifiedChildElementsGrouped.Any(g => g.Value.Count > 1))
+            if (originalChildElements.Count == 0 || modified == null)
             {
-                // if there are elements with duplicate names, the order of them probably matters
-                mods.AddRange(CompareOrderedElements(id, originalChildElements, modifiedChildElements));
+                return new XmlNodeDiff(new XmlSelector(xpath, taggedOriginal.GetId(original)), mods);
+            }
+
+            // if all element names are unique, just specify the element name
+            var groupedOriginalElements = originalChildElements.GroupBy(e => e.Name);
+            if (groupedOriginalElements.All(g => g.Count() == 1) &&
+                TryMapModifiedElements(original, modified, e => e.Name, out var mapped, out var childMods))
+            {
+                mods.AddRange(childMods);
+                return new XmlNodeDiff(new XmlSelector(xpath, taggedOriginal.GetId(original), mapped), mods);
+            }
+
+            // if all elements have a common 'primary key' attribute, specify the element name + attribute
+            if (groupedOriginalElements.Count() == 1 &&
+                TryGetKeyAttribute(groupedOriginalElements.First().ToList(), out var pkAttribute) &&
+                TryMapModifiedElements(original, modified,
+                    e => $"{e.Name}[@{pkAttribute}='{e.GetAttribute(pkAttribute)}']", out mapped, out childMods))
+            {
+                mods.AddRange(childMods);
+                return new XmlNodeDiff(new XmlSelector(xpath, taggedOriginal.GetId(original), mapped), mods);
+            }
+
+            // last resort - just specify the index
+            if (modifiedChildElements.Count > originalChildElements.Count)
+            {
+                // if there are more children in the modified version, we need to add items to match
+                var lastNodeId = taggedOriginal.GetId(originalChildElements.Last());
+                mods.AddRange(modifiedChildElements.Skip(originalChildElements.Count).Select(
+                    e => XmlModification.InsertElement(id, e, lastNodeId)));
             }
             else
             {
-                mods.AddRange(CompareUnorderedElements(id, originalChildElements, modifiedChildElements));
+                // if there are less children in the modified version, we need to remove items to match
+                mods.AddRange(originalChildElements.Skip(modifiedChildElements.Count).Select(
+                    e => XmlModification.RemoveElement(taggedOriginal.GetId(e))));
+                originalChildElements = originalChildElements.Take(modifiedChildElements.Count).ToList();
             }
 
-            // determine whether element value has changed
-            if (modifiedChildElements.Count() == 0 && original.InnerText != modified.InnerText)
+            var children =
+                (from i in Enumerable.Range(0, originalChildElements.Count)
+                 let child = originalChildElements[i]
+                 let mappedChild = modifiedChildElements[i]
+                 select Diff($"*[{i}]", child, mappedChild)).ToList();
+            mods.AddRange(children.SelectMany(c => c.Modifications));
+
+            var selector = new XmlSelector(xpath, taggedOriginal.GetId(original), children.Select(c => c.Selector));
+            return new XmlNodeDiff(selector, mods);
+        }
+
+        private bool TryMapModifiedElements(XmlElement original, XmlElement modified,
+            Func<XmlElement, string> getChildXPath, out List<XmlSelector> mappedSelectors,
+            out List<XmlModification> modifications)
+        {
+            modifications = new List<XmlModification>();
+            var originalChildElements = original.ChildNodes.Cast<XmlNode>().Where(n => n is XmlElement)
+                .Select(n => n as XmlElement).ToList();
+
+            var mappedArray = new XmlSelector[originalChildElements.Count];
+            var mappedToOriginalId = new Dictionary<XmlElement, int>();
+
+            for (int i = 0; i < originalChildElements.Count; i++)
             {
-                mods.Add(XmlModification.ModifyElementValue(id, modified.InnerText));
+                var element = originalChildElements[i];
+
+                // get the XPath for this element and try to locate it in the modified doc
+                var xpath = getChildXPath(element);
+                var mapped = modified.SelectNodes(xpath).Cast<XmlNode>()
+                    .Select(n => n as XmlElement).Where(n => n != null).ToList();
+
+                if (mapped.Count == 1)
+                {
+                    // if we found exactly one match, this XPath is a valid mapping
+                    var mappedNode = mapped.First();
+                    var diff = Diff(xpath, element, mappedNode);
+                    modifications.AddRange(diff.Modifications);
+                    mappedArray[i] = diff.Selector;
+                    mappedToOriginalId.Add(mappedNode, taggedOriginal.GetId(element));
+                }
+                else if (mapped.Count > 2)
+                {
+                    // we found more than one match - this XPath is ambiguous
+                    mappedSelectors = null;
+                    modifications = null;
+                    return false;
+                }
+
+                // if we didn't find a match, the element was either removed or renamed
             }
 
-            // sort modifications by node ID first, then by modification type
-            return mods.OrderByDescending(m => m.NodeId).ThenBy(m => (int)m.Type);
+            // identify additions, removals and renames
+            var modifiedChildElements = modified.ChildNodes.Cast<XmlNode>().Where(n => n is XmlElement)
+                .Select(n => n as XmlElement).ToList();
+            int lastNodeId = -1;
+            for (int a = 0; a < modifiedChildElements.Count; a++)
+            {
+                var addition = modifiedChildElements[a];
+                if (mappedToOriginalId.TryGetValue(addition, out var mappedNodeId))
+                {
+                    // store the node ID of the original node so we know where to insert additions
+                    lastNodeId = mappedNodeId;
+                }
+                else
+                {
+                    // identify whether this element was added or renamed
+                    bool wasRenamed = false;
+                    for (int r = 0; r < mappedArray.Length; r++)
+                    {
+                        if (mappedArray[r] == null)
+                        {
+                            var removal = originalChildElements[r];
+                            var removalId = taggedOriginal.GetId(removal);
+
+                            var diff = Diff(getChildXPath(removal), removal, addition);
+                            if (diff.Modifications.All(
+                                m => m.Type == XmlModificationType.RenameElement && m.NodeId == removalId))
+                            {
+                                // the 'removed' element was actually renamed to the 'addition'
+                                modifications.AddRange(diff.Modifications);
+                                mappedArray[r] = diff.Selector;
+                                mappedToOriginalId.Add(addition, removalId);
+                                wasRenamed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!wasRenamed)
+                    {
+                        // insert a new element
+                        modifications.Add(XmlModification.InsertElement(taggedOriginal.GetId(original), addition, lastNodeId));
+                    }
+                }
+            }
+
+            // add removal modifications for any elements that were removed
+            for (int i = 0; i < mappedArray.Length; i++)
+            {
+                if (mappedArray[i] == null)
+                {
+                    // remove the element
+                    var removal = originalChildElements[i];
+                    var diff = Diff(getChildXPath(removal), removal, null);
+                    modifications.AddRange(diff.Modifications);
+                    mappedArray[i] = diff.Selector;
+                    modifications.Add(XmlModification.RemoveElement(taggedOriginal.GetId(removal)));
+                }
+            }
+
+            mappedSelectors = mappedArray.ToList();
+            return true;
+        }
+
+        private bool TryGetKeyAttribute(IEnumerable<XmlElement> elements, out string attributeName)
+        {
+            attributeName = null;
+
+            // we assume that the first attribute of an element is the key
+            var firstAttributeForEachElement = elements.Select(e => e.Attributes.Cast<XmlAttribute>().FirstOrDefault());
+
+            // get the name of the attribute
+            var keyAttribute = firstAttributeForEachElement.FirstOrDefault()?.Name;
+            if (string.IsNullOrWhiteSpace(keyAttribute))
+            {
+                return false;
+            }
+
+            // verify that all elements have the same key attribute
+            if (firstAttributeForEachElement.Any(a => a.Name != keyAttribute))
+            {
+                return false;
+            }
+
+            // verify that all keys have unique values
+            if (firstAttributeForEachElement.GroupBy(a => a.Value).Any(g => g.Count() > 1))
+            {
+                return false;
+            }
+
+            attributeName = keyAttribute;
+            return true;
         }
 
         private IEnumerable<XmlModification> CompareAttributes(int id, XmlElement original, XmlElement modified)
@@ -125,134 +306,6 @@ namespace xmldiff
             }
 
             return mods;
-        }
-
-        private IEnumerable<XmlModification> CompareOrderedElements(int id,
-            IEnumerable<XmlElement> originalElements, IEnumerable<XmlElement> modifiedElements)
-        {
-            var mods = new List<XmlModification>();
-
-
-
-            return mods;
-        }
-
-        private IEnumerable<XmlModification> CompareUnorderedElements(int id,
-            IEnumerable<XmlElement> originalElements, IEnumerable<XmlElement> modifiedElements)
-        {
-            var mods = new List<XmlModification>();
-
-            // compare child elements
-            var possibleAdditions = new Dictionary<int, List<XmlElement>>();
-            var presentInModified = new List<string>();
-
-            int lastNodeId = -1;
-            foreach (var modified in modifiedElements)
-            {
-                presentInModified.Add(modified.Name);
-                var original = originalElements.FirstOrDefault(e => e.Name == modified.Name);
-                if (original == null)
-                {
-                    // this child element was added or renamed
-                    if (possibleAdditions.TryGetValue(lastNodeId, out var additionSet))
-                    {
-                        additionSet.Add(modified);
-                    }
-                    else
-                    {
-                        // record the ID of the last node so we know which node to insert the new element after
-                        possibleAdditions.Add(lastNodeId, new List<XmlElement> { modified });
-                    }
-                }
-                else
-                {
-                    lastNodeId = taggedOriginal.GetId(original);
-                    mods.AddRange(Diff(original, modified));
-                }
-            }
-
-            // determine whether items were added, renamed or removed
-            foreach (var removal in originalElements.Where(e => !presentInModified.Contains(e.Name)))
-            {
-                var removalId = taggedOriginal.GetId(removal);
-                bool wasRenamed = false;
-
-                foreach (var additionSet in possibleAdditions)
-                {
-                    for (int a = 0; a < additionSet.Value.Count; a++)
-                    {
-                        var addition = additionSet.Value[a];
-                        var comparison = Diff(removal, addition);
-                        if (!comparison.Any(m => m.Type != XmlModificationType.RenameElement && m.NodeId == removalId))
-                        {
-                            // the 'removed' element was actually renamed to the 'addition'
-                            mods.Add(XmlModification.RenameElement(removalId, addition.Name));
-                            additionSet.Value.RemoveAt(a);
-                            a--;
-                            wasRenamed = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!wasRenamed)
-                {
-                    // structure is different to any items being added
-                    mods.Add(XmlModification.RemoveElement(removalId));
-                }
-            }
-
-            // add any remaining additions
-            foreach (var set in possibleAdditions)
-            {
-                foreach (var addition in set.Value)
-                {
-                    mods.Add(XmlModification.InsertElement(id, addition, set.Key));
-                }
-            }
-
-            return mods;
-        }
-
-        private XmlElement SerializeModification(XmlDocument doc, XmlModification mod)
-        {
-            var element = doc.CreateElement(ModificationNodeName);
-
-            var idAttribute = doc.CreateAttribute(nameof(mod.NodeId));
-            idAttribute.Value = mod.NodeId.ToString();
-            element.Attributes.Append(idAttribute);
-
-            var typeAttribute = doc.CreateAttribute(nameof(mod.Type));
-            typeAttribute.Value = mod.Type.ToString();
-            element.Attributes.Append(typeAttribute);
-
-            if (!string.IsNullOrWhiteSpace(mod.Name))
-            {
-                var nameAttribute = doc.CreateAttribute(nameof(mod.Name));
-                nameAttribute.Value = mod.Name.ToString();
-                element.Attributes.Append(nameAttribute);
-            }
-
-            if (!string.IsNullOrWhiteSpace(mod.Value))
-            {
-                var valueAttribute = doc.CreateAttribute(nameof(mod.Value));
-                valueAttribute.Value = mod.Value.ToString();
-                element.Attributes.Append(valueAttribute);
-            }
-
-            if (mod.AfterNodeId.HasValue)
-            {
-                var afterNodeIdAttribute = doc.CreateAttribute(nameof(mod.AfterNodeId));
-                afterNodeIdAttribute.Value = mod.AfterNodeId.ToString();
-                element.Attributes.Append(afterNodeIdAttribute);
-            }
-
-            if (mod.Element != null)
-            {
-                element.AppendChild(doc.ImportNode(mod.Element, true));
-            }
-
-            return element;
         }
 
         public void Save(string path)
