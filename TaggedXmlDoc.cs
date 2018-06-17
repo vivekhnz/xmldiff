@@ -38,11 +38,6 @@ namespace xmldiff
             }
         }
 
-        public void Save(string path)
-        {
-            doc.Save(path);
-        }
-
         public int GetId(XmlElement original)
         {
             var attribute = original.GetAttribute(IdAttribute);
