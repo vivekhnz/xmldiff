@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
+using xmldiff.Modifications;
 
 namespace xmldiff
 {
@@ -13,9 +14,13 @@ namespace xmldiff
         public Dictionary<string, string> Attributes { get; private set; }
         public string ElementValue { get; private set; }
 
+        private XmlElement element;
+
         public TaggedXmlElement(int id, XmlElement original, List<TaggedXmlElement> children)
         {
             Id = id;
+            element = original;
+
             Attributes = original.Attributes.Cast<XmlAttribute>().GroupBy(a => a.Name)
                 .ToDictionary(g => g.Key, g => g.First().Value);
             Name = original.Name;
@@ -39,7 +44,7 @@ namespace xmldiff
                 if (Name != modified.Name)
                 {
                     // element has been renamed
-                    mods.Add(XmlModification.RenameElement(Id, modified.Name));
+                    mods.Add(new RenameElementModification(Id, modified.Name));
                 }
 
                 // compare attributes
@@ -50,11 +55,11 @@ namespace xmldiff
                     .Select(n => n as XmlElement).ToList();
                 if (modifiedChildElements.Count == 0 && ElementValue != modified.InnerText)
                 {
-                    mods.Add(XmlModification.ModifyElementValue(Id, modified.InnerText));
+                    mods.Add(new ModifyElementValueModification(Id, modified.InnerText));
                 }
                 else if (modifiedChildElements.Count > 0 && Elements.Count == 0)
                 {
-                    mods.AddRange(modifiedChildElements.Select(e => XmlModification.InsertElement(Id, e, -1)));
+                    mods.AddRange(modifiedChildElements.Select(e => new InsertElementModification(Id, e, -1)));
                 }
             }
 
@@ -91,13 +96,13 @@ namespace xmldiff
                 // if there are more children in the modified version, we need to add items to match
                 var lastNodeId = Elements.Last().Id;
                 mods.AddRange(modifiedChildElements.Skip(Elements.Count).Select(
-                    e => XmlModification.InsertElement(Id, e, lastNodeId)));
+                    e => new InsertElementModification(Id, e, lastNodeId)));
             }
             else
             {
                 // if there are less children in the modified version, we need to remove items to match
                 mods.AddRange(Elements.Skip(modifiedChildElements.Count).Select(
-                    e => XmlModification.RemoveElement(e.Id)));
+                    e => new RemoveElementModification(e.Id)));
                 elementsToSerialize = Elements.Take(modifiedChildElements.Count).ToList();
             }
 
@@ -187,7 +192,7 @@ namespace xmldiff
                     if (!wasRenamed)
                     {
                         // insert a new element
-                        modifications.Add(XmlModification.InsertElement(Id, addition, lastNodeId));
+                        modifications.Add(new InsertElementModification(Id, addition, lastNodeId));
                     }
                 }
             }
@@ -202,7 +207,7 @@ namespace xmldiff
                     var diff = removal.Diff(getChildXPath(removal), null);
                     modifications.AddRange(diff.Modifications);
                     mappedArray[i] = diff.Selector;
-                    modifications.Add(XmlModification.RemoveElement(removal.Id));
+                    modifications.Add(new RemoveElementModification(removal.Id));
                 }
             }
 
@@ -257,7 +262,7 @@ namespace xmldiff
                     if (attribute.Value != oldValue)
                     {
                         // attribute value has changed
-                        mods.Add(XmlModification.ModifyAttribute(Id, attribute.Key, attribute.Value));
+                        mods.Add(new ModifyAttributeModification(Id, attribute.Key, attribute.Value));
                     }
 
                     // remove from the original list so we can identify which attributes were removed
@@ -266,7 +271,7 @@ namespace xmldiff
                 else
                 {
                     // attribute has been added
-                    mods.Add(XmlModification.AddAttribute(Id, attribute.Key, attribute.Value));
+                    mods.Add(new AddAttributeModification(Id, attribute.Key, attribute.Value));
                 }
             }
 
@@ -274,10 +279,15 @@ namespace xmldiff
             foreach (var attribute in originalAttributes)
             {
                 // attribute was removed
-                mods.Add(XmlModification.RemoveAttribute(Id, attribute.Key));
+                mods.Add(new RemoveAttributeModification(Id, attribute.Key));
             }
 
             return mods;
+        }
+
+        public void ApplyModification(XmlModification mod)
+        {
+            mod.Apply(element);
         }
     }
 }

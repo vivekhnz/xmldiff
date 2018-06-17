@@ -5,9 +5,9 @@
     <OldProperty>abc</OldProperty>
     <TopLevelProperty>12345</TopLevelProperty>
     <OldSettings Count="3">
-        <Setting Name="Setting1" Value="000"/>
-        <Setting Name="Setting2" Value="DEF"/>
-        <Setting Name="Setting3" Value="222"/>
+        <Setting Name="Setting1" Value="000" />
+        <Setting Name="Setting2" Value="DEF" />
+        <Setting Name="Setting3" Value="222" />
     </OldSettings>
     <ConnectionStrings>
         <clear />

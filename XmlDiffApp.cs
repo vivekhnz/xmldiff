@@ -57,6 +57,12 @@ namespace xmldiff
             // load source doc and patch
             var source = new XmlDoc(sourceXmlPath);
             var patch = XmlDiff.Load(patchPath);
+
+            // apply patch
+            var patched = source.Patch(patch);
+
+            // save patched file
+            patched.Save(destinationXmlPath);
         }
     }
 }
